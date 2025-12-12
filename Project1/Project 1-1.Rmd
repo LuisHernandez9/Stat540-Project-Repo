@@ -1,0 +1,265 @@
+---
+title: "STAT540: Project 1 (guided): EDA and ggplot2 visualization"
+author: "YOUR NAME HERE"
+output: html_notebook
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries}
+# loading the needed libraries
+library(dslabs)
+library(tidyverse)
+library(ggplot2)
+```
+
+# The Task, total 75 pts
+
+This task consists of three (3) parts on a vaccination data and you will be completing them using ggplot2. Some examples are shown so you can see how a data scientist would approach a new dataset, and are intended to illustrate how `ggplot2` can be flexibly manipulated to create a variety of visualizations.
+
+### Part 1: Weeks reporting, total 35 pts.
+
+In this part, we will explore the `weeks_reporting` column in the vaccines data and its impact on the rate calculation. Run the code in the cell below to load the data.
+
+```{r load_diseases}
+data(us_contagious_diseases)
+```
+
+#### **a) (5 points)** Look at the help documentation for `us_contagious_diseases` and describe what the variable `weeks_reporting` represents.
+
+**Answer:** The `weeks_reporting` column counts the number of weeks counts were reported that year.
+
+#### **b) (5 points)** Using the `ggplot` to draw a histogram of the `weeks_reporting` column for all states, all years, and all diseases combined. Use no more than `25` bins on the horizontal axis. Use `dplyr/tideverse` style code using the pipe operator `%>%`.
+
+Hint: Uncomment the included code to see an example with 20 bins.
+
+```{r histogram_weeks}
+
+us_contagious_diseases %>%
+  ggplot(aes(x = weeks_reporting)) +
+  geom_histogram(bins = 20) +
+  xlab("Weeks Reporting") +
+  ggtitle("Histogram of Weeks Reporting")
+
+```
+
+#### **c) (5 points)** The histogram from part b) aggregates the `weeks_reporting` for all states, all years, and all diseases combined. It clearly possible that there are some diseases where the number of weeks reporting could be close to 52, and some diseases where the number of weeks reporting could be significantly smaller.
+
+Does the number of weeks reporting vary by disease?
+
+Use the `facet_wrap` function as shown in the code below to explore this. Note that one can use the default `count` option to produce frequency histogram instead of `density` in the ggplot options.
+
+```{r histogram_disease}
+
+us_contagious_diseases %>%
+  ggplot(aes(x = weeks_reporting, y = ..density..)) +
+  geom_histogram(bins = 20) +
+  facet_wrap(~disease) +
+  xlab("Weeks Reporting") +
+  ggtitle("Histogram of Weeks Reporting")
+```
+
+Produce similar plot but use `faced_grid` instead.
+
+**YOUR CODE HERE:**
+
+```{r }
+
+```
+
+#### **d) (10 points)** Apperantly the histogram above aggregates data on all states, it's impossible to see if there are differences in weeks reporting by states. To check if there are differences by state draw a boxplot by plotting the weeks reporting by state, and facetting by disease by running the code below.
+
+```{r boxplots, fig.width = 8, fig.height = 8}
+
+us_contagious_diseases %>%
+  ggplot(aes(x = state, y = weeks_reporting, group = state)) +
+  geom_boxplot() +
+  facet_wrap(~disease) +
+  xlab("State") + ylab("Weeks Reporting") +
+  coord_flip() +
+  ggtitle("Weeks Reporting for each Year")
+```
+
+How many diseases are recorded in the data?
+
+**Answer:**
+
+Produce similar displays without using the `coord_flip` function.
+
+**YOUR CODE HERE:**
+
+```{r}
+
+```
+
+#### **e) (10 points)** The above plots are hard to read, if we want to focus on one disease in particular. How can we revise the code in the previous chunk to only plot say Pertussis?
+
+```{r boxplot_pertussis}
+us_contagious_diseases %>%
+  filter(disease == "Pertussis") %>%
+  ggplot(aes(x = reorder(state, weeks_reporting, median),
+             y = weeks_reporting, group = state)) +
+  geom_boxplot() +
+  xlab("State") + ylab("Weeks Reporting") +
+  coord_flip() +
+  ggtitle("Weeks Reporting for each Year")
+```
+
+Produce similar display for the `Measles`.
+
+**YOUR CODE HERE:**
+
+```{r Measles}
+
+```
+
+### Part 2: Rate Calculation, total 20 pts
+
+We can calculated the rate for each disease in each state in each year as the `count` divided by the `population`. Now that we've identified that we need to take into account differential weeks reporting in calculating the rate, let us come up with better the rate calculation.
+
+#### **a) (5 points)** To subset the data to exclude Alaska and Hawaii and include states-years with weeks reporting greater than 0, run the code below.
+
+```{r filter_data}
+disease_subset <- us_contagious_diseases %>%
+  filter(state != "Alaska", state != "Hawaii",
+         weeks_reporting > 0)
+```
+
+Subset the date to produce dataset called `nc_subset` only for the state of North Carolina with weeks reporting greater than 0.
+
+**YOUR CODE HERE:**
+
+```{r filter_nc_data}
+
+```
+
+#### **b) (5 points)** Calculate the rate per 100,000, not taking into account weeks reporting and add it to the `disease_subset` dataframe by running the code below. Le us call this the **unadjusted rate**.
+
+```{r raw_rate}
+disease_subset <- disease_subset %>%
+  mutate(raw_rate = count / population * 100000)
+```
+
+Compute the **unadjusted rate** for the `nc_subset`.
+
+**YOUR CODE HERE:**
+
+```{r nc_raw_rate}
+
+
+```
+
+#### **c) (5 points)** Let us take into account the weeks reporting for vaccination data to calculate the rate. Call this the **adjusted rate**.
+
+```{r adjust_rate}
+disease_subset <- disease_subset %>%
+  mutate(rate = 52 * (count / weeks_reporting) / population * 1e5)
+```
+
+Compute the **adjusted rate** for the `nc_subset`.
+
+**YOUR CODE HERE:**
+
+```{r adjust_rate_nc}
+
+
+```
+
+#### **d) (5 points)** To compare the adjusted vs. unadjusted rate to see if there is a difference, we can make a scatter plot with one quantity on the x-axis and one quantity on the y-axis. Each point can be colored by the number of weeks reporting. The identity line is included so we easily make comparisons.
+
+```{r compare}
+disease_subset %>%
+  ggplot(aes(x = raw_rate, y = rate, color = weeks_reporting)) +
+  geom_point() +
+  scale_color_viridis_c() +
+  geom_abline(slope = 1, intercept = 1) +
+  xlab("Unadjusted Rate") + ylab("Adjusted Rate") +
+  ggtitle("Comparison between two rates")
+```
+
+Do we see a relationship here? Looking back at the derivation of the new rate, is it clear why the new rate is greater than or equal to the previously calculated rate?
+
+Is there a relationship between the difference and the number of weeks reporting?
+
+**ANSWER:**
+
+Hint: Recall that the adjusted rate is calculated as
+
+$$
+  r_{\text{adj}} = \frac{52}{\text{weeks
+  reporting}}\frac{\text{count}}{\text{population} / 100000}
+$$
+
+and the unadjusted rate is calculated as
+
+$$
+  r_{\text{unadj}} = \frac{\text{count}}{\text{population} / 100000}
+$$
+
+Compare the **adjusted** vs. **unadjusted rate** for North Carolina dataset to see if there is a difference, in a similar fashion.
+
+```{r compare_nc}
+
+
+
+
+```
+
+### Part 3, total 20 pts
+
+Now let us look at the global picture, we can apply the same principle to calculate the overall rate for each disease for the entire US.
+
+#### **a) (10 points)** For each disease and year, compute the overall rate for the entire US.
+
+Hint: You may want to use the `group_by` function. Run the code below:
+
+```{r us_rate}
+us_avg <- disease_subset %>%
+  group_by(disease, year) %>%
+  summarize(us_rate = sum(count / weeks_reporting * 52) / sum(population) * 1e5)
+head(us_avg)
+```
+
+For each disease and year, compute the rate for the state of North Carolina by writing similar code.
+
+**YOUR CODE HERE:**
+
+```{r nc_rate}
+
+
+
+```
+
+Discuss how the overall rate for US compares the NC rate for disease of your choice, e.g. Hepatitis A.
+
+**ANSWER:**
+
+#### **b) (10 points)** We can draw a plot of the correctly calculated overall rate for the entire US for each disease.
+
+```{r us_plot}
+us_avg %>%
+  ggplot(aes(x = year, y = us_rate, color = disease)) +
+  geom_line() +
+  xlab("Year") + ylab("Rate per 100,000") +
+  ggtitle("US rate for various infectious diseases")
+```
+
+Draw a plot of the correctly calculated rate for the state of North Carolina for each disease.
+
+```{r nc_plot}
+
+
+
+```
+
+Discuss how the overall rate for US compares and the NC rate for diseases trend during the time period covered by the data.
+
+**ANSWER:**
+
+Run this chunk to safe the Session details.
+
+```{r}
+sessionInfo()
+```
