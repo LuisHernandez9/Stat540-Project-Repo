@@ -11,12 +11,12 @@ All work here showcases applications of statistical methods, data analysis, and 
 STAT540-Final-Projects/
 ├─ README.md
 ├─ project-1/
-│  ├─ code/
       ├─ original # original script
       ├─ updated # updated script
       ├─ report # Complete .xml file
 ├─ project-2/
-│  ├─ code/
+      ├─ data/
+            ├─ ... # dataset
       ├─ original # original script
       ├─ updated # updated script
       ├─ report # Complete .xml file
