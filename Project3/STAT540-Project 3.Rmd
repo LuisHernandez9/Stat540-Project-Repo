@@ -1,0 +1,322 @@
+---
+title: "STAT540 - Project 3 - Option 1"
+author: "YOUR NAME HERE"
+date: '`r Sys.Date()`'
+output: html_notebook
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r packages, echo = TRUE, message = FALSE}
+# load the packages for graphing tree and data wrangling
+# install.packages("name_of_missing_package")  # uncomment to install package as necessary
+library(mdsr)
+library(tidyverse)
+library(discrim)
+library(kknn)
+library(dplyr)
+library(tidyr)
+library(partykit)
+library(parsnip)
+library(rpart)
+```
+
+# Project Objectives?
+
+Study the Diabetes status of people as recorded in the NHANES data using **supervised machine** learning algorithms. Decision tree classifier is built as a base model to compare with at least **two** (**2**) more classifiers.
+
+## Load the Data
+
+### Motivation: Example: **National Health and Nutrition Examination Survey (NHANES)**
+
+A researcher wants to study the risk factors of diabetes in patients. She has available data from the `NHANES` survey data from 2009-2012.
+
+**Some history:** This is survey data collected by the US National Center for Health Statistics (NCHS) which has conducted a series of health and nutrition surveys since the early 1960's. Since 1999 approximately 5,000 individuals of all ages are interviewed in their homes every year and complete the health examination component of the survey. The health examination is conducted in a mobile examination centre (MEC).
+
+`NHANES` data include `75` variables available for the `2009-2010` and `2011-2012` sample years. NHANESraw has 20,293 observations of these variables plus four additional variables that describe that sample weighting scheme employed. `NHANES` can be treated, for educational purposes, as if it were a **simple random sample** from the American population (the target population).
+
+A full list of the variables can be reviewed for each year survey at [NHANES survey](https://wwwn.cdc.gov/nchs/nhanes/default.aspx)
+
+For full survey data refer to [NHANES CDC.gov](https://wwwn.cdc.gov/nchs/nhanes/Default.aspx)
+
+Look at some records of data for only four variables: `Gender`,`Age`,`BMI`,`Diabetes`
+
+```{r}
+
+#library(NHANES)
+load("NHANES.Rdata")
+
+
+head(NHANES[30:40,c("Gender","Age","BMI","Diabetes")], 10)
+```
+
+> Let us select one patient with **`ID=207`** who has diabetes for illustration purposes later on, use the variables `Age`, `Gender`, `Diabetes`, `BMI`, `HHIncome`, `PhysActive`.
+
+Note the `Age` and `BMI`.
+
+```{r single_out_a_patient}
+patient7 <- NHANES[207, c("Age", "Gender", "Diabetes", "BMI", "HHIncome", "PhysActive")]
+
+patient7
+
+```
+
+Glimpse at the full data:
+
+```{r}
+head(NHANES,6)
+```
+
+Briefly describe the data set.
+
+**Answer:**
+
+## Part 1 (5 pts)
+
+Define a subset from the `NHANES` data for the variable `Age`, `Gender`, `Diabetes`, `BMI`, `HHIncome`, `PhysActive` called `people` by dropping the `NA` value
+
+**Solution**:
+
+```{r}
+# complete the code
+library(NHANES)
+people <- NHANES %>%
+  dplyr::select(Age, Gender, Diabetes, BMI, HHIncome, PhysActive) %>% 
+  drop_na()
+glimpse(people)
+
+
+```
+
+How many observations are in the data set?
+
+**Answer:**
+
+## Part 2 (5 pts)
+
+Let us write code to see how many people present in the data have diabetes. Create a variable `pcn` and store the result in a date frame object named `DiabetesFreq`.
+
+Hint: Use group_by() function on `Diabetes` variable and then `count()`.
+
+**Solution**:
+
+```{r}
+DiabetesFreq <- people %>%
+  group_by(Diabetes) %>%
+  count() %>%
+  mutate(pct = n / nrow(people))
+
+DiabetesFreq
+```
+
+We see around 9% of the people in the sample have diabetes.
+
+## Part 3 (5 pts)
+
+Build a decision tree classifier using all of the variables except for `HHIncome` (household income).
+
+**Solution**:
+
+```{r}
+library(rpart)
+library(parsnip)
+
+mod_diabetes <- decision_tree(mode = "classification") %>%
+  set_engine(
+    "rpart", 
+    control = rpart.control(cp = 0.005, minbucket = 30)
+  ) %>%
+  fit(Diabetes ~ Age + BMI + Gender + PhysActive, data = people)
+
+
+mod_diabetes # model saved in this variable
+```
+
+## Part 4 (5 pts)
+
+Plot the fitted tree model from **part 3)**.
+
+**Solution**:
+
+```{r}
+library(partykit)
+plot(as.party(mod_diabetes$fit))
+
+```
+
+If someone is 52 or younger, then it is likely that they do not have diabetes. However, if someone is 53 or older, risk is higher. If BMI is above 40---indicating obesity---then the risk increases again. Strangely---and this may be an evidence of overfitting---the risk is highest if you are between 61 and 67 years old.
+
+## Part 5 (5 pts)
+
+The graph below is a nice way to visualize a complex model. It has plotted our data in two quantitative dimensions (`Age` and `BMI` which are nodes in the decision tree model) while using color to represent our binary response variable (`Diabetes`).
+
+The decision tree simply partitions this two-dimensional space into axis-parallel rectangles. The model makes the same prediction for all observations within each rectangle. It is not hard to imagine---although it is hard to draw---how this recursive partitioning will scale to higher dimensions.
+
+This graph is a clear illustration of the strengths and weaknesses of models based on recursive partitioning. These types of models can only produce axis-parallel rectangles in which all points in each rectangle receive the same prediction. This makes these models relatively easy to understand and apply, but it is not hard to imagine a situation in which they might perform miserably (e.g., what if the relationship was non-linear?).
+
+**Solution**:
+
+```{r}
+
+segments <- tribble(
+  ~Age, ~xend, ~BMI, ~yend,
+  52.5, 100, 39.985, 39.985, 
+  67.5, 67.5, 39.985, Inf, 
+  60.5, 60.5, 39.985, Inf
+)
+
+ggplot(data = people, aes(x = Age, y = BMI)) + 
+  geom_count(aes(color = Diabetes), alpha = 0.5) + 
+  geom_vline(xintercept = 52.5) + 
+  geom_segment(
+    data = segments, 
+    aes(xend = xend, yend = yend)
+  ) +
+  scale_fill_gradient(low = "white", high = "red") + 
+  scale_color_manual(values = c("gold", "black")) +
+  annotate(
+    "rect", fill = "blue", alpha = 0.1,
+    xmin = 60.5, xmax = 67.5, ymin = 39.985, ymax = Inf
+  )
+
+
+```
+
+## Part 6 (5 pts)
+
+Run the code to produce the confusion matrix for the decision tree model saved in `mod_diabetes`. Use the entire data `people` as a test set. Note that this is not very good practice as the tree model was trained on it and it should perform fairly well.
+
+**Solution**:
+
+```{r}
+library(yardstick)
+
+pred <- people %>%
+  dplyr::select(Diabetes) %>%
+  bind_cols(
+    predict(mod_diabetes, new_data = people, type = "class")
+  ) %>%
+  rename(Diabetes_dtree = .pred_class)
+
+confusion <- pred %>%
+  conf_mat(truth = Diabetes, estimate = Diabetes_dtree)
+
+confusion
+
+
+
+```
+
+Discuss the output. What are the True Positive (TP), True Negative (TN), False Positive (FP), and False Negative (FN).
+
+**Answer:**
+
+## Part 7 (5 pts)
+
+The code below will produce the accuracy of the decision tree model from **part 6)**.
+
+```{r}
+accuracy(pred, Diabetes, Diabetes_dtree)
+```
+
+## Part 8 (5 pts)
+
+Let us predict the Diabetes status for our singled out patient with ID=7 stored in `patient7`
+
+**Solution**:
+
+```{r}
+
+new_x <- patient7
+
+# using the derived tree model saved in the object model: mod_diabetes
+predict(object = mod_diabetes, new_data = new_x, type = "class")
+
+```
+
+Was the prediction correct? Discuss, again, the tree model based on the graph from **part 5)**
+
+## Task 2 & 3
+
+Use at least **two** supervised machine learning algorithms, e.g. **`knn`**, **`Naive Bayes`**, or `logistic regression` to predict `Diabetes` status by training a model and assessing its predictive ability.
+
+### (10 pts) Create Training and Test data sets (80/20 split) from the `people` data.
+
+Based on the needs for the supervised learning algorithms wrangle the date and/or mutate variables.
+
+Allocate a sample of near `80%` of the rows to the `training` data set, with the remaining `20%` set aside as the `testing` (or "hold-out") data set.
+
+```{r split_data_set}
+
+```
+
+What percentage of the sample has diabetes? What is the accuracy of the *null model*?
+
+### (5 pts) Define one model via formula object in `R` for the `Diabetes` outcome variable.
+
+**Note:** May experiment and make adjustments to the selections later in order to improve the model(s) predictive abilities.
+
+```{r model form}
+
+# form <- as.formula(
+#   "Diabetes ~ ... "
+# )
+# 
+# form
+```
+
+### (20 pts) K-Nearest Neighbors
+
+Apply `KNN` for the `people` data predict the Diabetes status
+
+```{r}
+library(kknn)
+
+
+
+```
+
+#### (5 pts) Accuracy is
+
+```{r}
+
+
+```
+
+### (20 pts) Naive Bayes Classifier
+
+Apply `Naive Bayes classifier` for the `people` data to predict the Diabetes status
+
+```{r}
+
+
+```
+
+**Hint:** A na'ıve Bayes classifier is provided in R by the`naive_Bayes()` function from the `discrim` package.
+
+#### (5 pts) Accuracy is
+
+```{r}
+
+
+```
+
+### (20 pts) Logistic Regression Classifier
+
+Apply `Logistic Regression classifier` for the `people` data to predict the Diabetes status.
+
+```{r}
+
+
+```
+
+#### (5 pts) Accuracy is
+
+```{r}
+
+
+```
+
+#### (5 pts) Compare two of the two classifier using their accuracy.
